@@ -1,7 +1,4 @@
 services:
-  # ---------------------------------------------------------
-  # 1. SNMPエージェント（SRX300擬似機）
-  # ---------------------------------------------------------
   srx-mimic:
     image: ubuntu:22.04
     container_name: srx-mimic
@@ -23,9 +20,13 @@ services:
       retries: 20
       start_period: 60s
 
-  # ---------------------------------------------------------
-  # 2. Kentik ktranslate (New Relic NPM エージェント)
-  # ---------------------------------------------------------
+  ping-test:
+    image: nginx:latest
+    container_name: ping-test
+    networks:
+      npm_network:
+        ipv4_address: 172.25.0.101
+
   ktranslate:
     image: kentik/ktranslate:v2
     container_name: ktranslate-network
