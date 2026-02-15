@@ -1,0 +1,62 @@
+services:
+  # ---------------------------------------------------------
+  # 1. SNMPエージェント（SRX300擬似機）
+  # ---------------------------------------------------------
+  srx-mimic:
+    image: ubuntu:22.04
+    container_name: srx-mimic
+    ports:
+      - "161:161/udp"
+    networks:
+      npm_network:
+        ipv4_address: 172.25.0.100
+    volumes:
+      - ./snmpd.conf:/etc/snmp/snmpd.conf
+    command: >
+      sh -c "apt-get update &&
+             DEBIAN_FRONTEND=noninteractive apt-get install -y -o Dpkg::Options::='--force-confold' snmpd &&
+             snmpd -f -Lo -C -c /etc/snmp/snmpd.conf & tail -f /dev/null"
+    healthcheck:
+      test: ["CMD", "pgrep", "snmpd"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 60s
+
+  # ---------------------------------------------------------
+  # 2. Kentik ktranslate (New Relic NPM エージェント)
+  # ---------------------------------------------------------
+  ktranslate:
+    image: kentik/ktranslate:v2
+    container_name: ktranslate-network
+    restart: unless-stopped
+    pull_policy: always
+    depends_on:
+      srx-mimic:
+        condition: service_healthy
+    ports:
+      - "162:1620/udp"
+    volumes:
+      - ./snmp-base.yaml:/snmp-base.yaml
+    environment:
+      - NEW_RELIC_API_KEY=${NEW_RELIC_API_KEY}
+    command:
+      - -snmp
+      - /snmp-base.yaml
+      - -nr_account_id=7081067
+      - -metrics=jchf
+      - -tee_logs=false
+      - -service_name=network
+      - -snmp_discovery_on_start=true
+      - -snmp_discovery_min=180
+      - nr1.snmp
+    networks:
+      - npm_network
+
+networks:
+  npm_network:
+    name: npm_network
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.25.0.0/24
